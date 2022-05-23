@@ -22,7 +22,6 @@ fs.rm(`${del_path}`, {recursive: true, force: true}, () => {
     })
 
   })
-
 });
 
 
