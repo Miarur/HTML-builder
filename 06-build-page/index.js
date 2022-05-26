@@ -1,38 +1,65 @@
 const path = require('path'); 
 const fs = require('fs'); 
 const fsProm = fs.promises;
-const directory = path.join(__dirname);
-const assets = path.join(__dirname, 'assets');
-const project_dist_assets =  path.join(__dirname, 'project-dist/assets');
+const output = fs.createWriteStream(path.join(__dirname, "project-dist", "index.html"),"utf-8");
 
-console.log('==== 6 задание не выполнено , но  в процессе, при оценке задания , укажите пожалуйста ваши контактные данные для связи =====');
-console.log('=== Спасибо вам, и хорошего настроения! ===')
+let template = "";
+const readTemplate = fs.createReadStream(path.join(__dirname, "template.html"),"utf-8");
+
+readTemplate.on("data", (chunk) => {
+  let newChunk = chunk;
+
+  fs.readdir(path.join(__dirname, "components"), (err, data) => {
+    if (err) throw err;
+    data.forEach((file, i) => {
+      const readComponent = fs.createReadStream(path.join(__dirname, "components", file),"utf-8");
+      readComponent.on("data", (componentChunk) => {
+        const name = file.split(".")[0];
+        const reg = new RegExp(`\{\{${name}\}\}`, "g");
+        newChunk = newChunk.replace(reg, componentChunk);
+
+        if (i === data.length - 1) {
+          output.write(newChunk);
+        }
+      });
+    });
+  });
+
+  template += chunk;
+});
 
 
-// function miniBundle(assets, project_dist_assets) {
-//   fsProm.mkdir(`${directory}/project-dist`, { recursive: true } ).then( () => {
-//     fs.readdir((`${assets}`), (err, fileList) => {
-//       if(err) throw err;
+fsProm.mkdir(path.join(__dirname, 'project-dist'), { recursive: true }).then(() => {
+  const bundleCss = fs.createWriteStream(path.join(__dirname, 'project-dist', 'style.css'));
+  fsProm.readdir(path.join(__dirname, 'styles'), {withFileTypes: true}).then(fileList => {
+    fileList.forEach(filename => {
+      const filePath = path.join(__dirname, 'styles', filename.name);
+      if(filename.isFile() && path.extname(filePath) === '.css') {
+        fs.createReadStream(filePath).pipe(bundleCss);
+      } 
+    });
+  });
+});
 
-//       fileList.forEach( file => {
-//         let way = path.join(directory, file);
-//         fs.stat(way, (error, file_item) => {
-//           if(file_item.isFile() === true ) {
-//             fs.copyFile(path.join(__dirname, file), path.join(__dirname, 'project-dist', file), (err) => {
-//               if(err) throw err;
-//               console.log('file copied ++++ ' + path.basename(file));
 
-//             }) 
-//           } else {
-//             if(error) throw error;
-//             console.log('file is Folder ---- ' + path.basename(file));
-//             return miniBundle(path.join(__dirname, `${file}`), path.join(__dirname, `${project_dist_assets}`));
+function copy(currentDir, copyDir) {
+  fsProm.mkdir(copyDir, { recursive: true }).then(() => {
+    fsProm.readdir(currentDir, {withFileTypes: true}).then(fileList =>  fileList.forEach(file => {
+      if(file.isFile()) {
+        fsProm.copyFile(path.join(currentDir, file.name), path.join(copyDir, file.name));
+      }
+      else {
+        copy(path.join(currentDir, file.name), path.join(copyDir, file.name));
+      }
+    }));
+  });
+}
 
-//           }
-//         })
-//       })
-//     })
-//   })
-// }
 
-// miniBundle(assets, project_dist_assets);
+function copyFolder(currentPath, copyPath) {
+  fs.rm(copyPath, {recursive: true, force: true}, () => copy(currentPath, copyPath));
+}
+
+copyFolder(path.join(__dirname, 'assets'), path.join(__dirname, 'project-dist', 'assets'));
+
+
